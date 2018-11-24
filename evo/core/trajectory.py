@@ -296,6 +296,7 @@ class PoseTrajectory3D(PosePath3D, object):
                        self.timestamps[i], self.timestamps[i + 1])
             for i in range(len(self.positions_xyz) - 1)
         ]
+
         vmax = max(speeds)
         vmin = min(speeds)
         vmean = np.mean(speeds)
@@ -326,7 +327,6 @@ def calc_speed(xyz_1, xyz_2, t_1, t_2):
         raise TrajectoryException("bad timestamps: " + str(t_1) + " & " +
                                   str(t_2))
     return np.linalg.norm(xyz_2 - xyz_1) / (t_2 - t_1)
-
 
 def calc_angular_speed(p_1, p_2, t_1, t_2, degrees=False):
     """

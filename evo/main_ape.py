@@ -24,6 +24,8 @@ along with evo.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import print_function
 
 import logging
+import numpy as np
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -212,19 +214,90 @@ def run(args):
         est_name=est_name,
     )
 
-    if args.plot or args.save_plot or args.serialize_plot:
-        common.plot(args, result, result.trajectories[ref_name],
-                    result.trajectories[est_name])
+    print()
+    
 
-    if args.save_results:
-        logger.debug(SEP)
-        if not SETTINGS.save_traj_in_zip:
-            del result.trajectories[ref_name]
-            del result.trajectories[est_name]
-        file_interface.save_res_file(args.save_results, result,
-                                     confirm_overwrite=not args.no_warnings)
+    def rmse_cal(error_array):
+        squared_errors = np.power(error_array, 2)
+        rmse = math.sqrt(np.mean(squared_errors))
+        return rmse
 
+    error_array = result.np_arrays['error_array']
+
+    acc_dists = [0]
+    poses = traj_ref.positions_xyz
+    for i in range(1,len(poses)):
+        acc_dists.append(acc_dists[i-1] + np.linalg.norm(poses[i-1] - poses[i]))
+
+    ape_rate_list = []
+    length_segments = np.arange(100,4000, 100)
+    length_segments_idx = 0
+    for idx, acc_dist in enumerate(acc_dists):
+        if (acc_dist > length_segments[length_segments_idx]):
+            rmse_val = rmse_cal(error_array[:idx])
+            ape_rate_list.append(rmse_val/acc_dist)
+            length_segments_idx += 1
+            # print(rmse_val)
+            # print(acc_dist)
+            # print()
+
+    for ape_rate in ape_rate_list:
+        print(ape_rate)
+    print()
+    print(np.mean(ape_rate_list))
+
+    # for acc_dist in acc_dists:
+    #     if(acc_dist > 100):
+    #         break
+    #     print(acc_dist)
+    
+
+    # print('result.stats[rmse] : ',result.stats['rmse'])
+    # print('traj_ref.get_infos()[path length (m)] : ',traj_ref.get_infos()['path length (m)'])
+    # print('absolute pose error rate : ',result.stats['rmse']/traj_ref.get_infos()['path length (m)'])
+
+
+
+
+
+    # if args.plot or args.save_plot or args.serialize_plot:
+    #     common.plot(args, result, result.trajectories[ref_name],
+    #                 result.trajectories[est_name])
+
+    # if args.save_results:
+    #     logger.debug(SEP)
+    #     if not SETTINGS.save_traj_in_zip:
+    #         del result.trajectories[ref_name]
+    #         del result.trajectories[est_name]
+    #     file_interface.save_res_file(args.save_results, result,
+    #                                  confirm_overwrite=not args.no_warnings)
+
+
+
+def merge_config(args):
+    """
+    merge .json config file with the command line args (if --config was defined)
+    :param args: parsed argparse NameSpace object
+    :return: merged argparse NameSpace object
+    """
+    import json
+    if args.config:
+        with open(args.config) as config:
+            merged_config_dict = vars(args).copy()
+            # merge both parameter dicts
+            merged_config_dict.update(json.loads(config.read()))
+            # override args the hacky way
+            args = argparse.Namespace(**merged_config_dict)
+    return args
 
 if __name__ == '__main__':
-    from evo import entry_points
-    entry_points.ape()
+    # from evo import entry_points
+    # entry_points.ape()
+
+    import argcomplete 
+    from evo import main_ape
+    parser = main_ape.parser()
+    argcomplete.autocomplete(parser)
+    args = parser.parse_args()
+    args = merge_config(args)
+    run(args)
